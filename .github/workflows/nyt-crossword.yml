@@ -1,0 +1,32 @@
+name: NYT Crossword PDF
+
+on:
+  schedule:
+    - cron: "0 11 * * *"   # 11:00 UTC = 7am ET
+  workflow_dispatch:
+
+jobs:
+  crossword:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Write secrets to files
+        run: |
+          echo '${{ secrets.GOOGLE_TOKEN_JSON }}' > token.json
+          echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+          echo '${{ secrets.NYT_COOKIES }}' > nyt_cookies.txt
+
+      - name: Build image
+        run: docker build -t nyt-crossword .
+
+      - name: Run crossword job
+        run: |
+          docker run \
+            -e DRIVE_FOLDER_ID=${{ secrets.DRIVE_FOLDER_ID }} \
+            -v "$PWD/token.json:/app/token.json" \
+            -v "$PWD/credentials.json:/app/credentials.json" \
+            -v "$PWD/nyt_cookies.txt:/app/nyt_cookies.txt" \
+            nyt-crossword

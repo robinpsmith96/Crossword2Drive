@@ -40,36 +40,30 @@ from datetime import timedelta
 PDF_RE = re.compile(r'https://[^"]+\.pdf')
 
 def fetch_pdf_for_date(session, date):
-    print_url = (
-        "https://www.nytimes.com/svc/crosswords/v2/puzzle/print/"
-        f"{months[str(date.month)]}{date.day:02d}{str(date.year)[2:]}.pdf"
-    )
+    # Step 1: get puzzle metadata
+    api_url = f"https://www.nytimes.com/svc/crosswords/v3/puzzles/daily/{date.isoformat()}.json"
     
-    r = session.get(print_url)
+    r = session.get(api_url)
     if r.status_code != 200:
         return None
-    
-    # Check if the response is a valid PDF
-    if r.content.startswith(b"%PDF"):
-        filename = f"NYT Crossword {date.isoformat()}.pdf"
-        with open(filename, "wb") as f:
-            f.write(r.content)
-        return filename
-    
-    # Try to find embedded PDF URL as fallback
-    match = PDF_RE.search(r.text)
-    if not match:
+
+    data = r.json()
+
+    try:
+        puzzle_id = data["results"][0]["puzzle_id"]
+    except (KeyError, IndexError):
         return None
-    
-    pdf_url = match.group(0)
+
+    # Step 2: construct PDF URL
+    pdf_url = f"https://www.nytimes.com/svc/crosswords/v2/puzzle/{puzzle_id}.pdf"
+
     r2 = session.get(pdf_url)
-    
     if r2.status_code == 200 and r2.content.startswith(b"%PDF"):
         filename = f"NYT Crossword {date.isoformat()}.pdf"
         with open(filename, "wb") as f:
             f.write(r2.content)
         return filename
-    
+
     return None
 
 def download_crossword_pdf():

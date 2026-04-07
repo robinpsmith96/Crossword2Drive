@@ -40,41 +40,36 @@ from datetime import timedelta
 PDF_RE = re.compile(r'https://[^"]+\.pdf')
 
 def fetch_pdf_for_date(session, date):
-    # Known reference: puzzle 23827 was published on a specific date
-    # You'll need to adjust this based on an actual known puzzle date
-    base_puzzle_id = 23827
-    reference_date = datetime.date(2026, 4, 6)  # Update with actual reference date
-    
-    days_offset = (date - reference_date).days
-    puzzle_id = base_puzzle_id + days_offset
-    
-    print_url = f"https://www.nytimes.com/svc/crosswords/v2/puzzle/{puzzle_id}.pdf"
+    print_url = (
+        "https://www.nytimes.com/svc/crosswords/v2/puzzle/print/"
+        f"{months[str(date.month)]}{date.day:02d}{str(date.year)[2:]}.pdf"
+    )
     
     r = session.get(print_url)
     if r.status_code != 200:
         return None
     
-    filename = f"NYT Crossword {date.isoformat()}.pdf"
-    with open(filename, "wb") as f:
-        f.write(r.content)
+    # Check if the response is a valid PDF
+    if r.content.startswith(b"%PDF"):
+        filename = f"NYT Crossword {date.isoformat()}.pdf"
+        with open(filename, "wb") as f:
+            f.write(r.content)
         return filename
-
-    # Find embedded PDF URL
-    #print(r.text)
+    
+    # Try to find embedded PDF URL as fallback
     match = PDF_RE.search(r.text)
     if not match:
         return None
-
-    print("UhOh!")
+    
     pdf_url = match.group(0)
     r2 = session.get(pdf_url)
-
+    
     if r2.status_code == 200 and r2.content.startswith(b"%PDF"):
         filename = f"NYT Crossword {date.isoformat()}.pdf"
         with open(filename, "wb") as f:
             f.write(r2.content)
         return filename
-
+    
     return None
 
 def download_crossword_pdf():

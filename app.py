@@ -39,22 +39,45 @@ from datetime import timedelta
 
 PDF_RE = re.compile(r'https://[^"]+\.pdf')
 
-def fetch_pdf_for_date(session, date):
-    # Step 1: get puzzle metadata
-    api_url = f"https://www.nytimes.com/svc/crosswords/v3/puzzles/daily/{date.isoformat()}.json"
-    
-    r = session.get(api_url)
+def get_puzzle_id_from_page(session):
+    url = "https://www.nytimes.com/crosswords/game/daily"
+    r = session.get(url)
     if r.status_code != 200:
         return None
 
-    data = r.json()
+    # Look for embedded JSON with puzzle_id
+    match = re.search(r'"puzzle_id":\s*(\d+)', r.text)
+    if match:
+        return match.group(1)
 
-    try:
-        puzzle_id = data["results"][0]["puzzle_id"]
-    except (KeyError, IndexError):
+    return None
+
+def fetch_pdf_for_date(session, date):
+    api_url = f"https://www.nytimes.com/svc/crosswords/v3/puzzles/daily/{date.isoformat()}.json"
+    
+    r = session.get(api_url)
+    print("API status:", r.status_code)
+    print("API response:", r.text[:500])
+
+    puzzle_id = None
+
+    if r.status_code == 200:
+        try:
+            data = r.json()
+            if isinstance(data.get("results"), list):
+                puzzle_id = data["results"][0].get("puzzle_id")
+            elif isinstance(data.get("results"), dict):
+                puzzle_id = data["results"].get("puzzle", {}).get("puzzle_id")
+        except:
+            pass
+
+    # 🔁 Fallback to scraping
+    if not puzzle_id:
+        puzzle_id = get_puzzle_id_from_page(session)
+
+    if not puzzle_id:
         return None
 
-    # Step 2: construct PDF URL
     pdf_url = f"https://www.nytimes.com/svc/crosswords/v2/puzzle/{puzzle_id}.pdf"
 
     r2 = session.get(pdf_url)

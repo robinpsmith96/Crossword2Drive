@@ -59,12 +59,8 @@ def fetch_latest_pdf(session):
 
     # Extract puzzle_id
     puzzle_id = None
-    print("id:",data["id"])
-    print("results:",data["results"])
-    print("[0]:",data["results"][0])
-    print("id:",data["results"][0]["id"])
     try:
-        puzzle_id = data["results"][0]["id"]
+        puzzle_id = data["id"]
     except (KeyError, IndexError, TypeError):
         print("Unexpected JSON structure:", data)
         return None

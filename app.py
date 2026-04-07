@@ -41,38 +41,6 @@ PDF_RE = re.compile(r'https://[^"]+\.pdf')
 
 import json
 
-def extract_puzzle_id(html):
-    # Grab the Next.js data blob
-    match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html)
-    if not match:
-        print("No __NEXT_DATA__ found")
-        return None
-
-    try:
-        data = json.loads(match.group(1))
-        print(json.dumps(data)[:2000])
-    except Exception as e:
-        print("JSON parse failed:", e)
-        return None
-
-    # Recursively search for puzzle_id
-    def find_puzzle_id(obj):
-        if isinstance(obj, dict):
-            for k, v in obj.items():
-                if k in ("puzzle_id", "puzzleId", "id") and isinstance(v, int):
-                    return v
-                result = find_puzzle_id(v)
-                if result:
-                    return result
-        elif isinstance(obj, list):
-            for item in obj:
-                result = find_puzzle_id(item)
-                if result:
-                    return result
-        return None
-
-    return find_puzzle_id(data)
-
 def fetch_latest_pdf(session):
     api_url = "https://www.nytimes.com/svc/crosswords/v6/puzzle/daily.json"
     
@@ -92,7 +60,7 @@ def fetch_latest_pdf(session):
     # Extract puzzle_id
     puzzle_id = None
     try:
-        puzzle_id = data["results"][0]["puzzle_id"]
+        puzzle_id = data["results"][0]["id"]
     except (KeyError, IndexError, TypeError):
         print("Unexpected JSON structure:", data)
         return None

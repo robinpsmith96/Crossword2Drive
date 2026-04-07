@@ -74,19 +74,27 @@ def extract_puzzle_id(html):
     return find_puzzle_id(data)
 
 def fetch_latest_pdf(session):
-    url = "https://www.nytimes.com/crosswords/game/daily"
-    r = session.get(url)
+    api_url = "https://www.nytimes.com/svc/crosswords/v6/puzzle/daily.json"
+    
+    r = session.get(api_url)
+    print("API status:", r.status_code)
 
     if r.status_code != 200:
-        print("Failed to load crossword page:", r.status_code)
+        print("Failed to fetch puzzle data")
         return None
 
-    print("Page length:", len(r.text))
+    try:
+        data = r.json()
+    except Exception as e:
+        print("JSON parse error:", e)
+        return None
 
-    puzzle_id = extract_puzzle_id(r.text)
-
-    if not puzzle_id:
-        print("Could not find puzzle_id in structured data")
+    # Extract puzzle_id
+    puzzle_id = None
+    try:
+        puzzle_id = data["results"][0]["puzzle_id"]
+    except (KeyError, IndexError, TypeError):
+        print("Unexpected JSON structure:", data)
         return None
 
     print("Found puzzle_id:", puzzle_id)

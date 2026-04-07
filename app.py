@@ -52,41 +52,34 @@ def get_puzzle_id_from_page(session):
 
     return None
 
-def fetch_pdf_for_date(session, date):
-    api_url = f"https://www.nytimes.com/svc/crosswords/v3/puzzles/daily/{date.isoformat()}.json"
-    
-    r = session.get(api_url)
-    print("API status:", r.status_code)
-    print("API response:", r.text[:500])
+def fetch_latest_pdf(session):
+    url = "https://www.nytimes.com/crosswords/game/daily"
+    r = session.get(url)
+    print("Page length:", len(r.text))
 
-    puzzle_id = None
-
-    if r.status_code == 200:
-        try:
-            data = r.json()
-            if isinstance(data.get("results"), list):
-                puzzle_id = data["results"][0].get("puzzle_id")
-            elif isinstance(data.get("results"), dict):
-                puzzle_id = data["results"].get("puzzle", {}).get("puzzle_id")
-        except:
-            pass
-
-    # 🔁 Fallback to scraping
-    if not puzzle_id:
-        puzzle_id = get_puzzle_id_from_page(session)
-
-    if not puzzle_id:
+    if r.status_code != 200:
+        print("Failed to load crossword page:", r.status_code)
         return None
 
-    pdf_url = f"https://www.nytimes.com/svc/crosswords/v2/puzzle/{puzzle_id}.pdf"
+    # Extract puzzle_id from embedded page data
+    match = re.search(r'"puzzle_id":\s*(\d+)', r.text)
+    if not match:
+        print("Could not find puzzle_id in page")
+        return None
 
+    puzzle_id = match.group(1)
+    print("Found puzzle_id:", puzzle_id)
+
+    pdf_url = f"https://www.nytimes.com/svc/crosswords/v2/puzzle/{puzzle_id}.pdf"
     r2 = session.get(pdf_url)
+
     if r2.status_code == 200 and r2.content.startswith(b"%PDF"):
-        filename = f"NYT Crossword {date.isoformat()}.pdf"
+        filename = f"NYT Crossword {datetime.date.today().isoformat()}.pdf"
         with open(filename, "wb") as f:
             f.write(r2.content)
         return filename
 
+    print("Failed to download PDF:", r2.status_code)
     return None
 
 def download_crossword_pdf():
@@ -99,11 +92,10 @@ def download_crossword_pdf():
 
     today = datetime.date.today()
 
-    pdf = fetch_pdf_for_date(session, today)
-    if pdf:
-        return pdf
+    pdf = fetch_latest_pdf(session)
 
-    pdf = fetch_pdf_for_date(session, today - timedelta(days=1))
+    if not pdf:
+        raise RuntimeError("Printable NYT crossword PDF not found.")
     if pdf:
         return pdf
 

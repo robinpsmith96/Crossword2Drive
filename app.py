@@ -39,35 +39,56 @@ from datetime import timedelta
 
 PDF_RE = re.compile(r'https://[^"]+\.pdf')
 
-def get_puzzle_id_from_page(session):
-    url = "https://www.nytimes.com/crosswords/game/daily"
-    r = session.get(url)
-    if r.status_code != 200:
+import json
+
+def extract_puzzle_id(html):
+    # Grab the Next.js data blob
+    match = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html)
+    if not match:
+        print("No __NEXT_DATA__ found")
         return None
 
-    # Look for embedded JSON with puzzle_id
-    match = re.search(r'"puzzle_id":\s*(\d+)', r.text)
-    if match:
-        return match.group(1)
+    try:
+        data = json.loads(match.group(1))
+        print(json.dumps(data)[:2000])
+    except Exception as e:
+        print("JSON parse failed:", e)
+        return None
 
-    return None
+    # Recursively search for puzzle_id
+    def find_puzzle_id(obj):
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if k in ("puzzle_id", "puzzleId", "id") and isinstance(v, int):
+                    return v
+                result = find_puzzle_id(v)
+                if result:
+                    return result
+        elif isinstance(obj, list):
+            for item in obj:
+                result = find_puzzle_id(item)
+                if result:
+                    return result
+        return None
+
+    return find_puzzle_id(data)
 
 def fetch_latest_pdf(session):
     url = "https://www.nytimes.com/crosswords/game/daily"
     r = session.get(url)
-    print("Page length:", len(r.text))
 
     if r.status_code != 200:
         print("Failed to load crossword page:", r.status_code)
         return None
 
-    # Extract puzzle_id from embedded page data
-    match = re.search(r'"puzzle_id":\s*(\d+)', r.text)
-    if not match:
-        print("Could not find puzzle_id in page")
+    print("Page length:", len(r.text))
+
+    puzzle_id = extract_puzzle_id(r.text)
+
+    if not puzzle_id:
+        print("Could not find puzzle_id in structured data")
         return None
 
-    puzzle_id = match.group(1)
     print("Found puzzle_id:", puzzle_id)
 
     pdf_url = f"https://www.nytimes.com/svc/crosswords/v2/puzzle/{puzzle_id}.pdf"
